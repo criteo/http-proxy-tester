@@ -1,0 +1,18 @@
+language: go
+go:
+  - 1.12.x
+script:
+  - make deps
+  - make test
+  - make build
+sudo: false
+deploy:
+  provider: releases
+  api_key:
+    secure: Zj2r0TqFwqtGV2MNFB0YWJjzyBySqHKw5bUSLxb8DS3y7oTX0v80sHXmAVhDsXaevK4xell3qAnK60/JEpZJpflZLXq3jkYz2RENK4grAZMXNCxFDr5Ie0jhh3+eJut0XPIdGtsy9cnMwaUjLPJYevDV9ncbDzyrByNZFgK9Kpe7FMmyNiEtuhArOkddZvc7nwIe4XGVtpwWX0RBBx3tUKyb6SiBeUuoDCHzKkHqTZIi/kwfN9skzS/ZQ6pd0WTW1oXfia4IU+3Jl+uXphM6MwRKTyP+AELCpAaIOk8PsG4oyVw+aM0aIQU/nB3WwoeZwCzOTl2n2dZ8njd9Creu3RJWyedrbG0kZjQpP4GxsI1yvUtY5NH1+ElmOEz8DXv2M8FYcqs9CllIuWzx4Djwa3+9ao6tGp81D714FO2GA13ViQLwcJZ/8ntJgPJYKJcKApqKacsva3zraIJNesX4oLw9QOympj7KGpB1losNq8CEc4XUd2Ji77dtTXPXVU11PzTKP06tPMfzgYwRv7938oOCt4bUd0AjGjGutzKefnDAmXfOrWW3RI/uhiynPuFwmyFQxVqbKGK0FXgsm9qY/GIBWx1WE3tcwJUlGI5ny6FERAcJhdHXSGZGgrZb1a8VKyUOBmjOgbQDHcZrs3rRyxred21Efon/0RETxMQ7I+E=
+  file: http-proxy-tester-*
+  skip_cleanup: true
+  draft: true
+  on:
+    repo: criteo/http-proxy-tester
+    tags: true
