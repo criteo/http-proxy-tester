@@ -12,7 +12,7 @@
 *.out
 
 # Binary name
-proxy-tester
+http-proxy-tester-*
 
 # Local configuration
 config.yml
