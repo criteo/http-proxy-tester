@@ -23,7 +23,7 @@ type config struct {
 	Username string
 	Password string
 	Insecure bool
-	Proxies  proxyclient.ProxiesList
+	Proxies  []string
 	Targets  []string
 }
 
@@ -61,32 +61,35 @@ func main() {
 
 	var errors []error
 	for _, target := range config.Targets {
-		preq, err := proxyclient.MakeClientAndRequest(target, config.Proxies, &auth, config.Insecure)
+		for _, proxies := range config.Proxies {
+			preq, err := proxyclient.MakeClientAndRequest(target, proxies, &auth, config.Insecure)
 
-		if err != nil {
-			errors = append(errors, fmt.Errorf("could not prepare request: %s", err))
-			continue
-		}
+			if err != nil {
+				errors = append(errors, fmt.Errorf("could not prepare request: %s", err))
+				continue
+			}
 
-		resp, err := preq.Client.Do(preq.Request)
-		if err != nil {
-			errors = append(errors, fmt.Errorf("could not prepare request to %s: %s", target, err))
-			continue
-		}
-		if resp.StatusCode != 200 {
-			errors = append(errors, fmt.Errorf("got %v (200 expected) to %s", resp.StatusCode, target))
+			resp, err := preq.Client.Do(preq.Request)
+			if err != nil {
+				errors = append(errors, fmt.Errorf("could not prepare request to %s: %s", target, err))
+				continue
+			}
+			if resp.StatusCode != 200 {
+				errors = append(errors, fmt.Errorf("got %v (200 expected) to %s", resp.StatusCode, target))
+			}
 		}
 	}
 	// if we have the same amount of errors and target, sys.exit(1)
+	measurements := len(config.Targets) * len(config.Proxies)
 	if len(errors) > 0 {
 		log.Println("errors happened during check:")
 		for _, err := range errors {
 			log.Println(err)
 		}
-		if len(errors) == len(config.Targets) {
+		if len(errors) == measurements {
 			log.Fatalf("all targets in error")
 		}
 	}
-	success := len(config.Targets) - len(errors)
-	log.Printf("%v/%v targets ok\n", success, len(config.Targets))
+	success := measurements - len(errors)
+	log.Printf("%v/%v targets ok\n", success, measurements)
 }
