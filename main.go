@@ -61,8 +61,14 @@ func main() {
 
 	var errors []error
 	for _, target := range config.Targets {
-		for _, proxies := range config.Proxies {
-			preq, err := proxyclient.MakeClientAndRequest(target, proxies, &auth, config.Insecure)
+		for _, proxy := range config.Proxies {
+			rc := proxyclient.RequestConfig{
+				Target:   target,
+				Proxy:    proxy,
+				Auth:     &auth,
+				Insecure: config.Insecure,
+			}
+			preq, err := proxyclient.MakeClientAndRequest(rc)
 
 			if err != nil {
 				errors = append(errors, fmt.Errorf("could not prepare request: %s", err))
