@@ -1,9 +1,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
+	"sync"
+	"time"
 
 	"github.com/spf13/pflag"
 
@@ -23,6 +26,7 @@ type config struct {
 	Username string
 	Password string
 	Insecure bool
+	Timeout  time.Duration
 	Proxies  []string
 	Targets  []string
 }
@@ -51,42 +55,45 @@ func main() {
 		log.Fatalf("error while converting configuration to struct: %s", err)
 	}
 
-	auth := proxyclient.AuthMethod{
-		Type: "basic",
-		Params: map[string]string{
-			"username": config.Username,
-			"password": config.Password,
-		},
+	measurements := len(config.Targets) * len(config.Proxies)
+
+	ctx := context.Background()
+	if config.Timeout > 0 {
+		ctx, _ = context.WithTimeout(ctx, config.Timeout)
+	}
+
+	if config.Timeout > 0 {
+		log.Printf("running %d tests (timeout %s)...", measurements, config.Timeout)
+	} else {
+		log.Printf("running %d tests...", measurements)
 	}
 
 	var errors []error
+	var errorsLock sync.Mutex
+
+	var wg sync.WaitGroup
+	wg.Add(measurements)
+
 	for _, target := range config.Targets {
 		for _, proxy := range config.Proxies {
-			rc := proxyclient.RequestConfig{
-				Target:   target,
-				Proxy:    proxy,
-				Auth:     &auth,
-				Insecure: config.Insecure,
-			}
-			preq, err := proxyclient.MakeClientAndRequest(rc)
+			go func(target, proxy string) {
+				defer wg.Done()
 
-			if err != nil {
-				errors = append(errors, fmt.Errorf("could not prepare request: %s", err))
-				continue
-			}
+				err := testOne(ctx, config, proxy, target)
+				if err != nil {
+					errorsLock.Lock()
+					errors = append(errors, err)
+					errorsLock.Unlock()
+				}
 
-			resp, err := preq.Client.Do(preq.Request)
-			if err != nil {
-				errors = append(errors, fmt.Errorf("could not prepare request to %s: %s", target, err))
-				continue
-			}
-			if resp.StatusCode != 200 {
-				errors = append(errors, fmt.Errorf("got %v (200 expected) to %s", resp.StatusCode, target))
-			}
+			}(target, proxy)
 		}
 	}
+
+	// wait for tests to finish
+	wg.Wait()
+
 	// if we have the same amount of errors and target, sys.exit(1)
-	measurements := len(config.Targets) * len(config.Proxies)
 	if len(errors) > 0 {
 		log.Println("errors happened during check:")
 		for _, err := range errors {
@@ -98,4 +105,40 @@ func main() {
 	}
 	success := measurements - len(errors)
 	log.Printf("%v/%v targets ok\n", success, measurements)
+}
+
+func testOne(ctx context.Context, cfg config, proxy, target string) error {
+	auth := proxyclient.AuthMethod{
+		Type: "basic",
+		Params: map[string]string{
+			"username": cfg.Username,
+			"password": cfg.Password,
+		},
+	}
+
+	rc := proxyclient.RequestConfig{
+		Target:   target,
+		Proxy:    proxy,
+		Auth:     &auth,
+		Insecure: cfg.Insecure,
+	}
+	preq, err := proxyclient.MakeClientAndRequest(rc)
+
+	if err != nil {
+		return fmt.Errorf("could not prepare request: %s", err)
+	}
+
+	req := preq.Request
+	req = req.WithContext(ctx)
+
+	log.Printf("testing target %q with proxy %q", target, proxy)
+	resp, err := preq.Client.Do(req)
+	if err != nil {
+		return fmt.Errorf("could not prepare request to %s: %s", target, err)
+	}
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("got %v (200 expected) to %s", resp.StatusCode, target)
+	}
+
+	return nil
 }
